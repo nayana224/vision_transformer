@@ -1,3 +1,121 @@
+# Vision Transformer 논문 실습
+
+> **An Image is Worth 16×16 Words: Transformers for Image Recognition at Scale**  
+> Alexey Dosovitskiy et al., ICLR 2021
+
+이 저장소는 Google Research의 공식 `vision_transformer` 저장소를 fork하여,
+Vision Transformer(ViT) 논문의 핵심 구조를 직접 코드로 확인하기 위한 개인 학습용 저장소입니다.
+
+원본 구현은 가능한 한 유지하고, 개인 실습 코드는 `study/` 아래에 분리해서 작성합니다.
+
+- 원본 저장소: https://github.com/google-research/vision_transformer
+- 논문: https://arxiv.org/abs/2010.11929
+- 논문 정리: https://github.com/nayana224/dl-paper-research
+
+## 학습 목표
+
+ViT의 전체 데이터 흐름을 작은 실습 코드로 직접 확인합니다.
+
+```text
+Image
+↓
+Patchify
+↓
+Patch Embedding
+↓
+[CLS] Token + Position Embedding
+↓
+Transformer Encoder
+↓
+Classification Head
+↓
+Prediction
+```
+
+특히 각 단계에서 tensor shape이 어떻게 바뀌는지 확인하고,
+마지막에는 pretrained ViT inference와 attention visualization까지 진행합니다.
+
+## Study
+
+개인 실습 코드는 `study/` 디렉터리에 정리합니다.
+
+```text
+study/
+├── setup_venv.sh
+├── 01_patchify.py
+├── assets/
+└── outputs/
+```
+
+진행 계획:
+
+- [ ] 01. Image Patchify
+- [ ] 02. Patch Embedding
+- [ ] 03. CLS Token & Position Embedding
+- [ ] 04. Transformer Encoder
+- [ ] 05. Pretrained ViT Inference
+- [ ] 06. Attention Visualization
+
+첫 번째 실습에서는 224×224 RGB 이미지를 16×16 patch로 나누고,
+논문의 식
+
+```text
+N = HW / P²
+```
+
+이 실제 코드에서
+
+```text
+224 × 224 image
+→ 16 × 16 patch
+→ 14 × 14
+→ 196 patches
+→ flatten
+→ 196 × 768
+```
+
+로 이어지는 것을 직접 확인합니다.
+
+## Study Environment Setup
+
+실습 환경은 `study/.venv/`에 따로 생성합니다.
+
+저장소 루트에서:
+
+```bash
+bash study/setup_venv.sh
+```
+
+설치되는 주요 패키지:
+
+- CPU PyTorch
+- torchvision
+- Pillow
+- Matplotlib
+- Jupyter
+
+이후 다시 활성화하려면:
+
+```bash
+source study/.venv/bin/activate
+```
+
+> 이 환경은 논문 구조를 이해하기 위한 개인 실습용입니다.  
+> 아래 Google Research 원본 JAX/Flax 환경과는 별도로 관리합니다.
+
+## 원본 구현과의 관계
+
+Google Research의 원본 구현인 `vit_jax/`, 공식 notebook, model card 등은
+원본 코드 확인 및 비교를 위해 유지합니다.
+
+개인 학습 코드는 가능한 한 `study/` 안에서만 작성합니다.
+
+---
+
+# Google Research 원본 README
+
+아래 내용은 upstream 저장소의 안내를 보존한 것입니다.
+
 # Vision Transformer and MLP-Mixer Architectures
 
 In this repository we release models from the papers
