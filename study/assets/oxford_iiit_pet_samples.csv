@@ -1,0 +1,7 @@
+sample_no,dataset_index,class_index,class_name,filename
+1,0,0,Abyssinian,pet_01_Abyssinian.jpg
+2,98,1,American Bulldog,pet_02_American_Bulldog.jpg
+3,198,2,American Pit Bull Terrier,pet_03_American_Pit_Bull_Terrier.jpg
+4,298,3,Basset Hound,pet_04_Basset_Hound.jpg
+5,398,4,Beagle,pet_05_Beagle.jpg
+6,498,5,Bengal,pet_06_Bengal.jpg
