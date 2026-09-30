@@ -173,11 +173,11 @@ print()
 # 7. 첫 번째 patch 비교
 # ============================================
 
-print("First raw flattened patch")
+print("First raw flattened patch [0, :20]")
 print(flattened_patches[0, :20])
 print()
 
-print("First patch embedding")
+print("First patch embedding [0, :20]")
 print(patch_embeddings[0, :20])
 print()
 
