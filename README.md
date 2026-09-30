@@ -3,18 +3,33 @@
 > **An Image is Worth 16×16 Words: Transformers for Image Recognition at Scale**  
 > Alexey Dosovitskiy et al., ICLR 2021
 
-이 저장소는 Google Research의 공식 `vision_transformer` 저장소를 fork하여,
-Vision Transformer(ViT) 논문의 핵심 구조를 직접 코드로 확인하기 위한 개인 학습용 저장소입니다.
+Google Research의 공식 `vision_transformer` 저장소를 fork하여,
+ViT 논문을 읽은 뒤 핵심 구조를 직접 코드로 확인하기 위한 개인 학습 저장소입니다.
 
-원본 구현은 가능한 한 유지하고, 개인 실습 코드는 `study/` 아래에 분리해서 작성합니다.
+이 저장소의 목적은 논문 성능을 장시간 학습으로 재현하는 것이 아니라,
+**한 장의 이미지가 ViT 내부에서 어떤 tensor로 변환되고 순전파되는지 직접 추적하는 것**입니다.
 
-- 원본 저장소: https://github.com/google-research/vision_transformer
-- 논문: https://arxiv.org/abs/2010.11929
-- 논문 정리: https://github.com/nayana224/dl-paper-research
+- Original repository: https://github.com/google-research/vision_transformer
+- Paper: https://arxiv.org/abs/2010.11929
+- Paper notes / index: https://github.com/nayana224/dl-paper-research
+- Study branch: `study/vit-paper`
 
-## 학습 목표
+## 논문 학습 기준
 
-ViT의 전체 데이터 흐름을 작은 실습 코드로 직접 확인합니다.
+논문 한 편을 공부할 때 다음 내용을 내 말로 설명하고,
+최소 한 번은 직접 실습하는 것을 목표로 합니다.
+
+1. **Problem** — 기존 방법에 어떤 문제가 있었는가
+2. **Core idea** — 저자들이 그 문제를 어떤 핵심 아이디어로 풀었는가
+3. **Method** — 그 아이디어를 실제 모델 구조로 어떻게 구현했는가
+4. **Input / GT / Output / Loss** — 학습 데이터가 모델 안에서 어떻게 흐르는가
+5. **Evidence** — 실험 결과가 저자 주장을 실제로 뒷받침하는가
+6. **My observation** — 직접 실습했을 때 feature나 실패 사례에서 무엇을 봤는가
+
+현재 ViT 논문은 1~5번까지 읽고 정리했으며,
+이 `study/` 실습을 통해 마지막 **My observation**을 채우는 단계입니다.
+
+## 이번 실습에서 확인할 흐름
 
 ```text
 Image
@@ -32,61 +47,127 @@ Classification Head
 Prediction
 ```
 
-특히 각 단계에서 tensor shape이 어떻게 바뀌는지 확인하고,
-마지막에는 pretrained ViT inference와 attention visualization까지 진행합니다.
+핵심은 각 단계를 직접 실행하면서 다음을 확인하는 것입니다.
 
-## Study
+- image가 실제로 몇 개의 patch로 나뉘는가
+- patch 하나가 어떤 vector로 바뀌는가
+- sequence length와 embedding dimension이 어떻게 변하는가
+- [CLS] token과 position embedding이 어디에서 추가되는가
+- Transformer Encoder 전후의 tensor shape은 어떻게 유지되는가
+- pretrained model이 실제 이미지에서 어떤 prediction을 내는가
+- attention이 이미지의 어느 영역에 형성되는가
+- 틀린 사례에서는 어떤 패턴이 보이는가
 
-개인 실습 코드는 `study/` 디렉터리에 정리합니다.
+## Study 구성
+
+개인 실습 코드는 `study/` 아래에서 진행하며,
+Google Research 원본 코드는 비교 및 참고용으로 유지합니다.
 
 ```text
 study/
 ├── setup_venv.sh
+├── 00_prepare_dataset.py
 ├── 01_patchify.py
+├── data/
 ├── assets/
 └── outputs/
 ```
 
-진행 계획:
+실습이 진행되면서 다음 파일을 순서대로 추가할 예정입니다.
 
+```text
+00_prepare_dataset.py
+01_patchify.py
+02_patch_embedding.py
+03_cls_position.py
+04_encoder_forward.py
+05_inference.py
+06_attention_visualization.py
+```
+
+### 진행 상태
+
+- [x] 00. Oxford-IIIT Pet 데이터 준비
 - [ ] 01. Image Patchify
 - [ ] 02. Patch Embedding
-- [ ] 03. CLS Token & Position Embedding
-- [ ] 04. Transformer Encoder
+- [ ] 03. CLS Token + Position Embedding
+- [ ] 04. Transformer Encoder Forward
 - [ ] 05. Pretrained ViT Inference
-- [ ] 06. Attention Visualization
+- [ ] 06. Attention Visualization / Failure Case
 
-첫 번째 실습에서는 224×224 RGB 이미지를 16×16 patch로 나누고,
-논문의 식
+## 00. Dataset Preparation
+
+임의의 인터넷 이미지를 사용하는 대신,
+논문에서도 downstream benchmark로 사용한 **Oxford-IIIT Pet** 데이터셋을 실습 이미지로 사용합니다.
+
+`00_prepare_dataset.py`는 test split을 다운로드한 뒤
+서로 다른 class에서 대표 이미지 6장을 선택합니다.
+
+```text
+Oxford-IIIT Pet
+↓
+test split
+↓
+6 representative samples
+↓
+study/assets/
+```
+
+전체 dataset은 `study/data/`에 저장하고 Git에서는 제외합니다.
+선택한 대표 이미지는 이후 patchify, inference, attention visualization에서 다시 사용합니다.
+
+실행:
+
+```bash
+python study/00_prepare_dataset.py
+```
+
+## 01. Patchify
+
+첫 실습에서는 ViT-B/16을 이해하기 위한 가장 기본적인 변환부터 확인합니다.
+
+224×224 RGB 이미지를 16×16 patch로 나누면:
+
+```text
+224 × 224 × 3
+↓
+16 × 16 patch
+↓
+14 × 14
+↓
+196 patches
+↓
+each patch: 3 × 16 × 16
+↓
+flatten
+↓
+196 × 768
+```
+
+즉 논문의
 
 ```text
 N = HW / P²
 ```
 
-이 실제 코드에서
+를 실제 tensor shape으로 확인합니다.
 
-```text
-224 × 224 image
-→ 16 × 16 patch
-→ 14 × 14
-→ 196 patches
-→ flatten
-→ 196 × 768
-```
+이 단계에서는 모델 전체를 구현하지 않고,
+**image가 Transformer에 들어갈 수 있는 patch sequence로 바뀌는 과정**에만 집중합니다.
 
-로 이어지는 것을 직접 확인합니다.
+## Study Environment
 
-## Study Environment Setup
-
-실습 환경은 `study/.venv/`에 따로 생성합니다.
+실습 환경은 원본 JAX/Flax 환경과 분리하여
+`study/.venv/`에 별도로 생성합니다.
 
 저장소 루트에서:
 
 ```bash
 bash study/setup_venv.sh
+source study/.venv/bin/activate
 ```
 
-설치되는 주요 패키지:
+주요 패키지:
 
 - CPU PyTorch
 - torchvision
@@ -94,21 +175,24 @@ bash study/setup_venv.sh
 - Matplotlib
 - Jupyter
 
-이후 다시 활성화하려면:
-
-```bash
-source study/.venv/bin/activate
-```
-
-> 이 환경은 논문 구조를 이해하기 위한 개인 실습용입니다.  
-> 아래 Google Research 원본 JAX/Flax 환경과는 별도로 관리합니다.
+현재 실습은 장시간 training이 아니라 forward tensor flow 확인이 목적이므로
+CPU 환경을 기본으로 사용합니다.
 
 ## 원본 구현과의 관계
 
-Google Research의 원본 구현인 `vit_jax/`, 공식 notebook, model card 등은
-원본 코드 확인 및 비교를 위해 유지합니다.
+Google Research의 `vit_jax/`, 공식 notebook, model card 등은 가능한 한 수정하지 않습니다.
 
-개인 학습 코드는 가능한 한 `study/` 안에서만 작성합니다.
+개인 실습은 PyTorch로 작고 읽기 쉬운 형태로 작성한 뒤,
+필요한 단계에서 원본 JAX/Flax 구현과 대응시켜 확인합니다.
+
+```text
+study/의 최소 구현
+        ↕
+Google Research의 vit_jax/
+```
+
+즉 이 저장소에서는 **직접 구현해서 이해하는 것**과
+**공식 구현이 실제로 어떻게 작성되어 있는지 확인하는 것**을 분리해서 진행합니다.
 
 ---
 
