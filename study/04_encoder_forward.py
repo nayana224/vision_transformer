@@ -17,19 +17,21 @@ CHANNELS = 3
 
 PATCH_DIM = PATCH_SIZE * PATCH_SIZE * CHANNELS
 
-# Study setting:
+# Study setting
 # ViT-Base  : D = 768
 # ViT-Large : D = 1024
 # ViT-Huge  : D = 1280
-#
-# 여기서는 tensor flow를 보기 쉽게 D=128로 축소해서 사용한다.
 EMBED_DIM = 128
 
 NUM_PATCHES_PER_SIDE = IMAGE_SIZE // PATCH_SIZE
 NUM_PATCHES = NUM_PATCHES_PER_SIDE ** 2
-
-# CLS token을 추가한 뒤의 전체 sequence length
 SEQUENCE_LENGTH = NUM_PATCHES + 1
+
+# Multi-Head Attention
+NUM_HEADS = 4
+
+# ViT의 MLP는 보통 hidden dimension을 더 크게 사용
+MLP_DIM = 256
 
 SCRIPT_DIR = Path(__file__).resolve().parent
 ASSETS_DIR = SCRIPT_DIR / "assets"
@@ -68,7 +70,7 @@ CLASS_NAME = sample["class_name"]
 
 
 # ============================================
-# 3. 이미지 불러오기
+# 3. 이미지 -> patch sequence
 # ============================================
 
 image = Image.open(IMAGE_PATH).convert("RGB")
@@ -81,16 +83,6 @@ transform = transforms.Compose(
 )
 
 image_tensor = transform(image)
-
-print("Selected sample")
-print(f"Class      : {CLASS_NAME}")
-print(f"Image path : {IMAGE_PATH}")
-print()
-
-
-# ============================================
-# 4. Patchify
-# ============================================
 
 patches = image_tensor.unfold(
     dimension=1,
@@ -124,45 +116,28 @@ flattened_patches = patch_sequence.reshape(
     PATCH_DIM,
 )
 
-print("Flattened patch shape")
-print(flattened_patches.shape)
-print()
-
 
 # ============================================
-# 5. Patch Embedding
+# 4. Patch Embedding
 # ============================================
 
 patch_projection = nn.Linear(
-    in_features=PATCH_DIM,
-    out_features=EMBED_DIM,
+    PATCH_DIM,
+    EMBED_DIM,
 )
 
 patch_embeddings = patch_projection(
     flattened_patches
 )
 
-print("Patch embedding shape")
-print(patch_embeddings.shape)
-print()
-
 
 # ============================================
-# 6. CLS token 생성
+# 5. CLS token + Position Embedding
 # ============================================
 
 cls_token = nn.Parameter(
     torch.zeros(1, EMBED_DIM)
 )
-
-print("CLS token shape")
-print(cls_token.shape)
-print()
-
-
-# ============================================
-# 7. CLS token을 patch sequence 앞에 추가
-# ============================================
 
 tokens = torch.cat(
     [
@@ -172,15 +147,6 @@ tokens = torch.cat(
     dim=0,
 )
 
-print("Shape after adding CLS token")
-print(tokens.shape)
-print()
-
-
-# ============================================
-# 8. Position Embedding 생성
-# ============================================
-
 position_embedding = nn.Parameter(
     torch.zeros(
         SEQUENCE_LENGTH,
@@ -188,72 +154,144 @@ position_embedding = nn.Parameter(
     )
 )
 
-print("Position embedding shape")
-print(position_embedding.shape)
+x = tokens + position_embedding
+
+print("Transformer input shape")
+print(x.shape)
 print()
 
 
 # ============================================
-# 9. Token embedding + Position Embedding
+# 6. Batch dimension 추가
 # ============================================
 
-vit_input = tokens + position_embedding
+# MultiheadAttention에서 batch_first=True를 사용하므로
+# 입력 shape은 [batch, sequence, embedding] 형태여야 한다.
+x = x.unsqueeze(0)
 
-print("Final ViT input shape")
-print(vit_input.shape)
-print()
-
-
-# ============================================
-# 10. 값 일부 확인
-# ============================================
-
-print("CLS token - first 10 values")
-print(tokens[0, :10])
-print()
-
-print("First patch embedding - first 10 values")
-print(tokens[1, :10])
-print()
-
-print("First position embedding - first 10 values")
-print(position_embedding[0, :10])
-print()
-
-print("Final CLS input - first 10 values")
-print(vit_input[0, :10])
+print("After adding batch dimension")
+print(x.shape)
 print()
 
 
 # ============================================
-# 11. shape 요약
+# 7. Encoder Block 구성
+# ============================================
+
+norm1 = nn.LayerNorm(
+    EMBED_DIM
+)
+
+attention = nn.MultiheadAttention(
+    embed_dim=EMBED_DIM,
+    num_heads=NUM_HEADS,
+    batch_first=True,
+)
+
+norm2 = nn.LayerNorm(
+    EMBED_DIM
+)
+
+mlp = nn.Sequential(
+    nn.Linear(
+        EMBED_DIM,
+        MLP_DIM,
+    ),
+    nn.GELU(),
+    nn.Linear(
+        MLP_DIM,
+        EMBED_DIM,
+    ),
+)
+
+
+# ============================================
+# 8. Pre-LN + Multi-Head Self-Attention
+# ============================================
+
+residual = x
+
+x_norm = norm1(x)
+
+attention_output, attention_weights = attention(
+    query=x_norm,
+    key=x_norm,
+    value=x_norm,
+    need_weights=True,
+)
+
+x = residual + attention_output
+
+print("After Multi-Head Self-Attention")
+print(x.shape)
+print()
+
+print("Attention weight shape")
+print(attention_weights.shape)
+print()
+
+
+# ============================================
+# 9. Pre-LN + MLP
+# ============================================
+
+residual = x
+
+x_norm = norm2(x)
+
+mlp_output = mlp(x_norm)
+
+x = residual + mlp_output
+
+print("After MLP")
+print(x.shape)
+print()
+
+
+# ============================================
+# 10. CLS token 확인
+# ============================================
+
+final_cls_token = x[:, 0]
+
+print("Final CLS token shape")
+print(final_cls_token.shape)
+print()
+
+print("Final CLS token - first 10 values")
+print(final_cls_token[0, :10])
+print()
+
+
+# ============================================
+# 11. 전체 shape 요약
 # ============================================
 
 print("======================================")
-print("CLS + Position Embedding Summary")
+print("Transformer Encoder Summary")
 print("======================================")
 
 print(
-    f"Patch embeddings      : "
-    f"{tuple(patch_embeddings.shape)}"
+    f"Input                : "
+    f"(1, {SEQUENCE_LENGTH}, {EMBED_DIM})"
 )
 
 print(
-    f"CLS token             : "
-    f"{tuple(cls_token.shape)}"
+    f"After Attention      : "
+    f"{tuple(x.shape)}"
 )
 
 print(
-    f"After CLS concat      : "
-    f"{tuple(tokens.shape)}"
+    f"Final CLS token      : "
+    f"{tuple(final_cls_token.shape)}"
 )
 
+print()
+print("Encoder structure")
 print(
-    f"Position embedding    : "
-    f"{tuple(position_embedding.shape)}"
+    "LN -> Multi-Head Self-Attention "
+    "-> Residual"
 )
-
 print(
-    f"Transformer input     : "
-    f"{tuple(vit_input.shape)}"
+    "LN -> MLP -> Residual"
 )

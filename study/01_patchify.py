@@ -113,7 +113,7 @@ patches = image_tensor.unfold(
     dimension=1,
     size=PATCH_SIZE,
     step=PATCH_SIZE,
-)
+) # [3, 14, 224, 16] = [c, H 방향 조각 개수, W, H 조각 크기]
 
 patches = patches.unfold(
     dimension=2,
